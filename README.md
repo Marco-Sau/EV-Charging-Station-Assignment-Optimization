@@ -49,8 +49,15 @@ python run_ev_optimization.py --solver ssp
 python run_ev_optimization.py --solver cycle
 python run_ev_optimization.py --solver mmcc
 
+# Save results automatically
+python run_ev_optimization.py --solver ssp --save
+python run_ev_optimization.py --bench --save
+
 # Test Cagliari scenario
 python cagliari_ev_scenario.py
+
+# Save Cagliari comparison results
+python cagliari_ev_scenario.py --save
 ```
 
 ## 📊 **Performance Results**
@@ -72,6 +79,28 @@ Ev_Nearest_Charger/
 ├── requirements.txt            # Python dependencies
 ├── .gitignore                  # Git ignore rules
 └── README.md                   # This documentation
+```
+
+## 💾 **Results Storage**
+
+When using the `--save` flag, results are automatically saved to timestamped directories in `results/`:
+
+### **Demo Results** (`--save` with demo scenario)
+- `results.json` - Complete optimization results
+- `assignments.csv` - EV-to-station assignments  
+- `summary.txt` - Human-readable summary
+
+### **Benchmark Results** (`--bench --save`)
+- `benchmark.json` - Performance comparison data
+- `benchmark.csv` - Timing results in spreadsheet format
+- `benchmark_summary.txt` - Algorithm comparison table
+
+### **Cagliari Results** (`cagliari_ev_scenario.py --save`)
+- Individual algorithm results in separate folders
+- `comparison_summary.json` - Complete algorithm comparison
+- `algorithm_comparison.txt` - Results table
+- `cagliari_transportation_data.csv` - Original transportation problem data
+
 ```
 
 ## 🎓 **Course Integration**

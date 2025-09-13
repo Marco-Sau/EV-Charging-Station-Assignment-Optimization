@@ -76,15 +76,109 @@ def benchmark_all(repeats: int = 3) -> List[Dict[str, Any]]:
     return results
 
 
+def save_results(results: Dict[str, Any], solver: str = "ssp", scenario: str = "demo"):
+    """Save results in multiple formats to the results directory."""
+    import json
+    import csv
+    import os
+    from datetime import datetime
+    
+    # Create results directory structure
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    results_dir = f"results/{scenario}_{solver}_{timestamp}"
+    os.makedirs(results_dir, exist_ok=True)
+    
+    # Save JSON (complete data)
+    with open(f"{results_dir}/results.json", 'w') as f:
+        json.dump(results, f, indent=2, default=str)
+    
+    # Save assignments as CSV
+    if "assignments" in results and results["assignments"]:
+        with open(f"{results_dir}/assignments.csv", 'w', newline='') as f:
+            writer = csv.DictWriter(f, fieldnames=results["assignments"][0].keys())
+            writer.writeheader()
+            writer.writerows(results["assignments"])
+    
+    # Save summary as text
+    with open(f"{results_dir}/summary.txt", 'w') as f:
+        f.write(f"EV Charging Optimization Results\n")
+        f.write(f"================================\n\n")
+        f.write(f"Scenario: {scenario}\n")
+        f.write(f"Algorithm: {solver.upper()}\n")
+        f.write(f"Timestamp: {datetime.now().isoformat()}\n\n")
+        f.write(f"Total Cost: {results.get('total_cost_cents', 'N/A')} cents\n")
+        f.write(f"Assigned EVs: {len(results.get('assignments', []))}\n")
+        f.write(f"Unassigned EVs: {len(results.get('unassigned_evs', []))}\n\n")
+        
+        if "station_utilization" in results:
+            f.write("Station Utilization:\n")
+            for station, count in results["station_utilization"].items():
+                f.write(f"  {station}: {count} assignments\n")
+        
+        if "mcf_summary" in results:
+            f.write(f"\nAlgorithm Details:\n")
+            for key, value in results["mcf_summary"].items():
+                f.write(f"  {key}: {value}\n")
+    
+    print(f"✅ Results saved to: {results_dir}/")
+    return results_dir
+
+def save_benchmark_results(benchmark_results: List[Dict[str, Any]]):
+    """Save benchmark results in multiple formats."""
+    import json
+    import csv
+    import os
+    from datetime import datetime
+    
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    results_dir = f"results/benchmark_{timestamp}"
+    os.makedirs(results_dir, exist_ok=True)
+    
+    # Save JSON
+    with open(f"{results_dir}/benchmark.json", 'w') as f:
+        json.dump(benchmark_results, f, indent=2)
+    
+    # Save CSV
+    with open(f"{results_dir}/benchmark.csv", 'w', newline='') as f:
+        if benchmark_results:
+            writer = csv.DictWriter(f, fieldnames=benchmark_results[0].keys())
+            writer.writeheader()
+            writer.writerows(benchmark_results)
+    
+    # Save summary
+    with open(f"{results_dir}/benchmark_summary.txt", 'w') as f:
+        f.write(f"EV Charging Algorithm Benchmark\n")
+        f.write(f"===============================\n\n")
+        f.write(f"Timestamp: {datetime.now().isoformat()}\n\n")
+        f.write(f"{'Algorithm':<10} {'Min Time':<10} {'Avg Time':<10} {'Max Time':<10} {'Cost':<10}\n")
+        f.write("-" * 60 + "\n")
+        
+        for result in benchmark_results:
+            f.write(f"{result['solver'].upper():<10} "
+                   f"{result['min_s']:<10.6f} "
+                   f"{result['avg_s']:<10.6f} "
+                   f"{result['max_s']:<10.6f} "
+                   f"{result['total_cost_cents']:<10}\n")
+    
+    print(f"✅ Benchmark results saved to: {results_dir}/")
+    return results_dir
+
+
 if __name__ == "__main__":
     import argparse, json
     parser = argparse.ArgumentParser()
     parser.add_argument("--solver", choices=["ssp", "mmcc", "cycle"], default="ssp")
-    parser.add_argument("--bench", action="store_true")
+    parser.add_argument("--bench", action="store_true", help="Run benchmark comparison of all algorithms")
+    parser.add_argument("--save", action="store_true", help="Save results to files")
     args = parser.parse_args()
 
     if args.bench:
-        print(json.dumps(benchmark_all(repeats=3), indent=2))
+        results = benchmark_all(repeats=3)
+        print(json.dumps(results, indent=2))
+        if args.save:
+            save_benchmark_results(results)
     else:
         out = run_comprehensive_optimization(solver=args.solver)
         print(json.dumps(out, indent=2))
+        if args.save:
+            save_results(out, solver=args.solver, scenario="demo")

@@ -318,5 +318,134 @@ def compare_with_transportation_problem():
             print(f"{solver.upper():>6}: ERROR - {data['error']}")
 
 
+def save_cagliari_results(results: Dict[str, Any], solver: str = "ssp"):
+    """Save Cagliari scenario results in multiple formats."""
+    import json
+    import csv
+    import os
+    from datetime import datetime
+    
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    results_dir = f"results/cagliari_{solver}_{timestamp}"
+    os.makedirs(results_dir, exist_ok=True)
+    
+    # Save complete JSON
+    with open(f"{results_dir}/cagliari_results.json", 'w') as f:
+        json.dump(results, f, indent=2, default=str)
+    
+    # Save assignments CSV
+    if "assignments" in results and results["assignments"]:
+        with open(f"{results_dir}/assignments.csv", 'w', newline='') as f:
+            writer = csv.DictWriter(f, fieldnames=results["assignments"][0].keys())
+            writer.writeheader()
+            writer.writerows(results["assignments"])
+    
+    # Save transportation comparison
+    with open(f"{results_dir}/cagliari_analysis.txt", 'w') as f:
+        f.write("CAGLIARI EV CHARGING OPTIMIZATION ANALYSIS\n")
+        f.write("==========================================\n\n")
+        f.write(f"Timestamp: {datetime.now().isoformat()}\n")
+        f.write(f"Algorithm: {solver.upper()}\n\n")
+        
+        f.write("Original Transportation Problem:\n")
+        f.write(f"  Supply locations: {len(SUPPLY_NAMES)} ({', '.join(SUPPLY_NAMES)})\n")
+        f.write(f"  Supply quantities: {SUPPLIES} (total: {sum(SUPPLIES)})\n")
+        f.write(f"  Demand locations: {len(DEMAND_NAMES)} ({', '.join(DEMAND_NAMES)})\n")
+        f.write(f"  Demand quantities: {DEMANDS} (total: {sum(DEMANDS)})\n\n")
+        
+        f.write("EV Optimization Results:\n")
+        f.write(f"  Total cost: {results.get('total_cost_cents', 'N/A')} cents\n")
+        f.write(f"  Assigned EVs: {len(results.get('assignments', []))}\n")
+        f.write(f"  Unassigned EVs: {len(results.get('unassigned_evs', []))}\n\n")
+        
+        if "cagliari_analysis" in results:
+            cagliari = results["cagliari_analysis"]
+            f.write("Supply Utilization:\n")
+            for location, count in cagliari["supply_utilization"].items():
+                f.write(f"  {location}: {count} EVs\n")
+            
+            f.write("\nDemand Utilization:\n")
+            for location, count in cagliari["demand_utilization"].items():
+                f.write(f"  {location}: {count} assignments\n")
+    
+    # Save cost matrix CSV
+    with open(f"{results_dir}/cagliari_transportation_data.csv", 'w', newline='') as f:
+        writer = csv.writer(f)
+        header = ["Supply_Location", "Supply_Quantity"] + [f"Cost_to_{d}" for d in DEMAND_NAMES] + [f"Capacity_to_{d}" for d in DEMAND_NAMES]
+        writer.writerow(header)
+        
+        for i, supply_name in enumerate(SUPPLY_NAMES):
+            row = [supply_name, SUPPLIES[i]]
+            row.extend(COSTS[i])
+            row.extend(CAPACITIES[i])
+            writer.writerow(row)
+    
+    print(f"✅ Cagliari results saved to: {results_dir}/")
+    return results_dir
+
+def save_cagliari_comparison():
+    """Run all algorithms and save comprehensive comparison."""
+    import os
+    import json
+    from datetime import datetime
+    
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    results_dir = f"results/cagliari_comparison_{timestamp}"
+    os.makedirs(results_dir, exist_ok=True)
+    
+    # Test all algorithms and collect results
+    algorithms_results = {}
+    algorithms = ["ssp", "cycle", "mmcc"]
+    
+    for solver in algorithms:
+        print(f"Running {solver.upper()} algorithm...")
+        try:
+            result = run_cagliari_ev_optimization(solver=solver)
+            algorithms_results[solver] = result
+            
+            # Save individual result
+            save_cagliari_results(result, solver)
+            
+        except Exception as e:
+            print(f"Error with {solver}: {e}")
+            algorithms_results[solver] = {"error": str(e)}
+    
+    # Save comparison summary
+    with open(f"{results_dir}/comparison_summary.json", 'w') as f:
+        json.dump(algorithms_results, f, indent=2, default=str)
+    
+    # Save comparison table
+    with open(f"{results_dir}/algorithm_comparison.txt", 'w') as f:
+        f.write("CAGLIARI ALGORITHM COMPARISON\n")
+        f.write("=============================\n\n")
+        f.write(f"Timestamp: {datetime.now().isoformat()}\n\n")
+        f.write(f"{'Algorithm':<10} {'Cost':<12} {'Assigned':<10} {'Unassigned':<12} {'Status':<10}\n")
+        f.write("-" * 65 + "\n")
+        
+        for solver, result in algorithms_results.items():
+            if "error" not in result:
+                cost = result.get("total_cost_cents", "N/A")
+                assigned = len(result.get("assignments", []))
+                unassigned = len(result.get("unassigned_evs", []))
+                status = "✅ OK"
+            else:
+                cost = "ERROR"
+                assigned = "N/A"
+                unassigned = "N/A"
+                status = "❌ FAIL"
+            
+            f.write(f"{solver.upper():<10} {str(cost):<12} {str(assigned):<10} {str(unassigned):<12} {status:<10}\n")
+    
+    print(f"✅ Comparison results saved to: {results_dir}/")
+    return results_dir, algorithms_results
+
+
 if __name__ == "__main__":
-    compare_with_transportation_problem()
+    import sys
+    
+    if len(sys.argv) > 1 and sys.argv[1] == "--save":
+        # Save comprehensive comparison
+        save_cagliari_comparison()
+    else:
+        # Just display comparison
+        compare_with_transportation_problem()
