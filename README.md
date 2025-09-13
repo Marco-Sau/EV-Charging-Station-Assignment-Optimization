@@ -64,7 +64,7 @@ python cagliari_ev_scenario.py
 ## 🏗️ **Project Structure**
 
 ```
-Ev_Nearest_Charger_gpt/
+Ev_Nearest_Charger/
 ├── ev_charging_optimizer.py    # Phase 1: Feasibility analysis & data models
 ├── ev_charging_mcf.py          # Phase 2: MCF algorithms (SSP, Cycle, MMCC)
 ├── run_ev_optimization.py      # Main orchestration script & CLI
