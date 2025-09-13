@@ -1,0 +1,6 @@
+# requirements.txt
+# Core logic uses only the Python standard library.
+# Optional (for your own analysis/plots/csv):
+# numpy
+# pandas
+# matplotlib
