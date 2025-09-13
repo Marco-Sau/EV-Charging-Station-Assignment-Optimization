@@ -65,12 +65,13 @@ python cagliari_ev_scenario.py
 
 ```
 Ev_Nearest_Charger_gpt/
-├── ev_charging_optimizer.py    # Phase 1: Feasibility analysis
-├── ev_charging_mcf.py          # Phase 2: MCF algorithms
-├── run_ev_optimization.py      # Main orchestration script
-├── cagliari_ev_scenario.py     # Cagliari scenario adapter
-├── requirements.txt            # Dependencies
-└── README.md                   # This file
+├── ev_charging_optimizer.py    # Phase 1: Feasibility analysis & data models
+├── ev_charging_mcf.py          # Phase 2: MCF algorithms (SSP, Cycle, MMCC)
+├── run_ev_optimization.py      # Main orchestration script & CLI
+├── cagliari_ev_scenario.py     # Real Cagliari scenario adapter
+├── requirements.txt            # Python dependencies
+├── .gitignore                  # Git ignore rules
+└── README.md                   # This documentation
 ```
 
 ## 🎓 **Course Integration**
