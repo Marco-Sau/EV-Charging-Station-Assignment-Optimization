@@ -1,189 +1,151 @@
-from __future__ import annotations
-from dataclasses import dataclass
-from typing import Dict, List, Tuple, Optional
-import heapq
-import math
+#!/usr/bin/env python3
+"""
+Orchestration for the Cagliari scenario:
+- seeding for reproducibility
+- run Cycle-Canceling and SSP
+- save results in deterministic order under results/<timestamp>/ (or custom dir)
+"""
 
-@dataclass
-class ElectricVehicle:
-    ev_id: str
-    origin_node: int
-    battery_kwh: float
-    consumption_kwh_per_km: float
-    value_of_time_eur_per_h: float = 0.0
+import os
+import sys
+import csv
+import json
+import time
+import random
+from typing import Dict, List, Optional
 
-@dataclass
-class ChargingStation:
-    station_id: str
-    node: int
-    capacity: int
-    price_eur_per_kwh: float
-    power_kw: float = 50.0
+from cagliari_real_scenario import (
+    SUPPLY_NAMES, DEMAND_NAMES, SUPPLIES, DEMANDS, COSTS_EUR, CAPACITIES,
+    build_transportation_network,
+)
+from ev_charging_mcf import (
+    Network, cycle_canceling, successive_shortest_path,
+)
 
-@dataclass
-class EVLabel:
-    node: int
-    dist_km: float
-    time_min: float
-    energy_kwh: float
-    prev: Optional[int]
 
-class ChargingCostCalculator:
-    def __init__(self, travel_cents_per_km: int = 10, include_time_value: bool = True):
-        self.travel_cents_per_km = travel_cents_per_km
-        self.include_time_value = include_time_value
+# ----------------------------- Reproducibility ------------------------------
 
-    def travel_cost_cents(self, distance_km: float, time_min: float, ev: ElectricVehicle) -> int:
-        cost = self.travel_cents_per_km * distance_km
-        if self.include_time_value and ev.value_of_time_eur_per_h > 0:
-            cost += 100 * ev.value_of_time_eur_per_h * (time_min / 60.0)
-        return int(round(cost))
+def seed_everything(seed: int) -> None:
+    """Best-effort seeding for reproducibility."""
+    random.seed(seed)
+    try:
+        import numpy as np  # optional
+        np.random.seed(seed)
+    except Exception:
+        pass
+    phs = os.environ.get("PYTHONHASHSEED", None)
+    if phs is None or phs in {"random", ""}:
+        print("[WARN] PYTHONHASHSEED is not fixed. For full reproducibility run as:",
+              f"PYTHONHASHSEED=0 python run_ev_optimization.py --seed {seed}",
+              file=sys.stderr)
 
-    def charging_cost_cents(self, energy_kwh: float, station: ChargingStation) -> int:
-        return int(round(100.0 * energy_kwh * station.price_eur_per_kwh))
 
-    def charging_time_min(self, energy_kwh: float, station: ChargingStation) -> float:
-        if station.power_kw <= 0:
-            return math.inf
-        return 60.0 * energy_kwh / station.power_kw
+# ----------------------------- I/O helpers ---------------------------------
 
-# RoadGraph: node -> List[(neighbor, distance_km, time_min)]
-RoadGraph = Dict[int, List[Tuple[int, float, float]]]
+def _stable_sorted_flows(rows: List[Dict]) -> List[Dict]:
+    """Deterministic ordering for tabular output."""
+    return sorted(rows, key=lambda r: (r["from"], r["to"]))
 
-def dijkstra_shortest_paths(
-    road: RoadGraph, source: int, weight: str = "distance"
-) -> Tuple[Dict[int, float], Dict[int, float], Dict[int, Optional[int]]]:
-    dist_km = {u: math.inf for u in road}
-    time_min = {u: math.inf for u in road}
-    parent: Dict[int, Optional[int]] = {u: None for u in road}
-    dist_km[source] = 0.0
-    time_min[source] = 0.0
+def _ensure_output_dir(output_root: Optional[str]) -> str:
+    root = output_root or "results"
+    ts = time.strftime("%Y%m%d_%H%M%S")
+    out_dir = os.path.join(root, f"cagliari_{ts}")
+    os.makedirs(out_dir, exist_ok=True)
+    return out_dir
 
-    def key_val(d, t):
-        return d if weight == "distance" else t
+def save_solution(name: str, out_dir: str, objective_eur: float, flows: List[Dict], seed: int) -> None:
+    flows_sorted = _stable_sorted_flows(flows)
+    # CSV
+    csv_path = os.path.join(out_dir, f"flows_{name}.csv")
+    with open(csv_path, "w", newline="") as f:
+        w = csv.DictWriter(f, fieldnames=["from", "to", "flow", "unit_cost_eur", "arc_cost_eur"])
+        w.writeheader()
+        for r in flows_sorted:
+            w.writerow(r)
+    # JSON summary
+    summary_path = os.path.join(out_dir, f"summary_{name}.json")
+    with open(summary_path, "w") as f:
+        json.dump({
+            "algorithm": name,
+            "objective_eur": objective_eur,
+            "nonzero_arcs": len(flows_sorted),
+            "seed": seed
+        }, f, indent=2)
 
-    pq: List[Tuple[float, int]] = [(0.0, source)]
-    seen = set()
-    while pq:
-        _, u = heapq.heappop(pq)
-        if u in seen:
-            continue
-        seen.add(u)
-        for v, dk, tm in road.get(u, []):
-            nd = dist_km[u] + dk
-            nt = time_min[u] + tm
-            if key_val(nd, nt) < key_val(dist_km[v], time_min[v]):
-                dist_km[v] = nd
-                time_min[v] = nt
-                parent[v] = u
-                heapq.heappush(pq, (key_val(nd, nt), v))
-    return dist_km, time_min, parent
+def save_report(out_dir: str, cycle_obj: float, ssp_obj: float, seed: int) -> None:
+    path = os.path.join(out_dir, "report.json")
+    with open(path, "w") as f:
+        json.dump({
+            "scenario": "Cagliari (transportation/MCF in EUR)",
+            "seed": seed,
+            "algorithms": {
+                "cycle_canceling": {"objective_eur": cycle_obj},
+                "ssp": {"objective_eur": ssp_obj}
+            }
+        }, f, indent=2)
 
-def reconstruct_path(parent: Dict[int, Optional[int]], target: int) -> List[int]:
-    path = []
-    v = target
-    while v is not None:
-        path.append(v)
-        v = parent[v]
-    return list(reversed(path))
 
-def is_compatible(ev: ElectricVehicle, station: ChargingStation) -> bool:
-    # Hook for connector types/vehicle compat in real scenarios.
-    return True
+# ----------------------------- Solvers wrappers -----------------------------
 
-def ev_feasible_stations(
-    ev: ElectricVehicle,
-    stations: List[ChargingStation],
-    road: RoadGraph,
-    cost_calc: ChargingCostCalculator,
-    weight: str = "distance",
-) -> List[Dict]:
-    dist_km, time_min, parent = dijkstra_shortest_paths(road, ev.origin_node, weight=weight)
-    candidates: List[Dict] = []
-    for st in stations:
-        if not is_compatible(ev, st):
-            continue
-        d = dist_km.get(st.node, math.inf)
-        t = time_min.get(st.node, math.inf)
-        if not math.isfinite(d):
-            continue
-        energy_used = d * ev.consumption_kwh_per_km
-        if energy_used > ev.battery_kwh:
-            continue
-        travel_cents = cost_calc.travel_cost_cents(d, t, ev)
-        charge_cents = cost_calc.charging_cost_cents(energy_used, st)
-        charge_time = cost_calc.charging_time_min(energy_used, st)
-        total_cents = travel_cents + charge_cents
-        path_nodes = reconstruct_path(parent, st.node)
-        candidates.append({
-            "ev_id": ev.ev_id,
-            "station_id": st.station_id,
-            "distance_km": d,
-            "time_min": t,
-            "energy_kwh": energy_used,
-            "travel_cost_cents": travel_cents,
-            "charging_cost_cents": charge_cents,
-            "charging_time_min": charge_time,
-            "total_cost_cents": total_cents,
-            "path_nodes": path_nodes,
-        })
-    return candidates
+def _collect_solution_from_net(net: Network) -> Dict:
+    """Collect objective and flows for supply->demand arcs (excludes super arcs)."""
+    ns, nd = len(SUPPLIES), len(DEMANDS)
+    flows = []
+    for i in range(ns):
+        for j in range(nd):
+            aid = i * nd + j
+            f = net.get_arc_flow(aid)
+            if f > 0:
+                unit = COSTS_EUR[i][j]
+                flows.append({
+                    "from": SUPPLY_NAMES[i],
+                    "to": DEMAND_NAMES[j],
+                    "flow": int(f),
+                    "unit_cost_eur": unit,
+                    "arc_cost_eur": unit * int(f)
+                })
+    obj = sum(r["arc_cost_eur"] for r in flows)
+    return {"objective_eur": obj, "flows": flows}
 
-def create_demo_road_network(
-    n_rows: int = 4, n_cols: int = 4, km_per_edge: float = 1.0, min_per_edge: float = 2.0
-) -> RoadGraph:
-    def nid(r, c): return r * n_cols + c
-    road: RoadGraph = {nid(r, c): [] for r in range(n_rows) for c in range(n_cols)}
-    for r in range(n_rows):
-        for c in range(n_cols):
-            u = nid(r, c)
-            if r + 1 < n_rows:
-                v = nid(r + 1, c)
-                road[u].append((v, km_per_edge, min_per_edge))
-                road[v].append((u, km_per_edge, min_per_edge))
-            if c + 1 < n_cols:
-                v = nid(r, c + 1)
-                road[u].append((v, km_per_edge, min_per_edge))
-                road[v].append((u, km_per_edge, min_per_edge))
-    return road
+def optimize_with_cycle_canceling() -> Dict:
+    net = build_transportation_network()
+    cycle_canceling(net)
+    return _collect_solution_from_net(net)
 
-def create_demo_ev_fleet(road: RoadGraph, n_evs: int = 6) -> List[ElectricVehicle]:
-    nodes = list(road.keys())
-    evs: List[ElectricVehicle] = []
-    for i in range(n_evs):
-        evs.append(ElectricVehicle(
-            ev_id=f"EV{i+1}",
-            origin_node=nodes[i % len(nodes)],
-            battery_kwh=40.0,
-            consumption_kwh_per_km=0.15,
-            value_of_time_eur_per_h=0.0
-        ))
-    return evs
+def optimize_with_ssp() -> Dict:
+    net = build_transportation_network()
+    successive_shortest_path(net)
+    return _collect_solution_from_net(net)
 
-def create_demo_charging_stations(road: RoadGraph, n_stations: int = 4) -> List[ChargingStation]:
-    nodes = list(road.keys())
-    step = max(1, len(nodes)//n_stations)
-    stations: List[ChargingStation] = []
-    for i in range(n_stations):
-        stations.append(ChargingStation(
-            station_id=f"S{i+1}",
-            node=nodes[(i*step) % len(nodes)],
-            capacity=max(1, (i % 3) + 1),
-            price_eur_per_kwh=0.50 + 0.05 * (i % 3),
-            power_kw=50.0
-        ))
-    return stations
 
-def optimize_ev_charging_assignments_phase1(
-    evs: List[ElectricVehicle],
-    stations: List[ChargingStation],
-    road: RoadGraph,
-    travel_cents_per_km: int = 10,
-    weight: str = "distance",
-) -> List[Dict]:
-    cost_calc = ChargingCostCalculator(travel_cents_per_km=travel_cents_per_km)
-    all_candidates: List[Dict] = []
-    for ev in evs:
-        cand = ev_feasible_stations(ev, stations, road, cost_calc, weight=weight)
-        all_candidates.extend(cand)
-    return all_candidates
+# ----------------------------- Public pipeline -----------------------------
+
+def main_optimization_pipeline(seed: int = 42, output_dir: Optional[str] = None) -> Dict:
+    seed_everything(seed)
+
+    print(">> Cagliari MCF optimization (EUR)")
+    print(f"   Supplies: {sum(SUPPLIES)}  |  Demands: {sum(DEMANDS)}")
+    print(f"   Matrix: {len(SUPPLIES)} x {len(DEMANDS)}  (capacitated arcs)\n")
+
+    # Cycle-Canceling
+    print("   [1/2] Cycle-Canceling ...")
+    cc = optimize_with_cycle_canceling()
+    print(f"        objective: €{cc['objective_eur']:.2f}, nonzero arcs: {len(cc['flows'])}")
+
+    # SSP
+    print("   [2/2] Successive Shortest Path ...")
+    ssp = optimize_with_ssp()
+    print(f"        objective: €{ssp['objective_eur']:.2f}, nonzero arcs: {len(ssp['flows'])}")
+
+    out_dir = _ensure_output_dir(output_dir)
+    save_solution("cycle_canceling", out_dir, cc["objective_eur"], cc["flows"], seed)
+    save_solution("ssp", out_dir, ssp["objective_eur"], ssp["flows"], seed)
+    save_report(out_dir, cc["objective_eur"], ssp["objective_eur"], seed)
+
+    print(f"\n[OK] Results written to: {out_dir}")
+    return {
+        "output_dir": out_dir,
+        "seed": seed,
+        "cycle_canceling": cc,
+        "ssp": ssp
+    }
