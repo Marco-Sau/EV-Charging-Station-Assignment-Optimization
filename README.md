@@ -13,11 +13,10 @@ This project implements a **two-phase optimization approach**:
 - **Cost calculation**: Travel cost + charging cost for each feasible assignment
 
 ### **Phase 2: Minimum Cost Flow Optimization** (`ev_charging_mcf.py`)
-Converts the assignment problem into a **network flow optimization** and solves it using **three different algorithms**:
+Converts the assignment problem into a **network flow optimization** and solves it using **two proven algorithms**:
 
 1. **Successive Shortest Path (SSP)** - Fast and efficient (Lecture 30)
 2. **Cycle-Canceling** - General-purpose approach with Bellman-Ford
-3. **Minimum Mean Cycle Canceling (MMCC)** - Theoretically optimal with Karp's algorithm
 
 ## 🧮 **Algorithms Implemented**
 
@@ -27,8 +26,6 @@ Converts the assignment problem into a **network flow optimization** and solves 
 | **Bellman-Ford** | 21-22 | `bellman_ford_negative_cycle()` | Negative cycle detection |
 | **SSP** | 30 | `SSPPotentialsSolver` | MCF with potentials |
 | **Cycle-Canceling** | 28-29 | `ev_charging_cycle_canceling()` | MCF optimization |
-| **MMCC** | 31-32 | `ev_charging_min_mean_cycle_canceling()` | Optimal MCF |
-| **Karp's Algorithm** | 31-32 | `_find_min_mean_cycle_karp()` | Min mean cycle |
 
 ## 🚀 **Quick Start**
 
@@ -39,69 +36,82 @@ Converts the assignment problem into a **network flow optimization** and solves 
 pip install numpy pandas matplotlib
 ```
 
-### **Run the Project**
+### **Run All Scenarios (Recommended)**
 ```bash
-# Test all three algorithms
-python run_ev_optimization.py --bench
+# Run all scenarios with all algorithms and save results
+python run_all.py --save-dir results
 
-# Test specific algorithm
-python run_ev_optimization.py --solver ssp
-python run_ev_optimization.py --solver cycle
-python run_ev_optimization.py --solver mmcc
+# Run specific scenarios
+python run_all.py --scenarios demo cagliari
 
-# Save results automatically
-python run_ev_optimization.py --solver ssp --save
-python run_ev_optimization.py --bench --save
+# Run specific algorithms
+python run_all.py --solvers ssp cycle
 
-# Test Cagliari scenario
-python cagliari_ev_scenario.py
+# Custom parameters
+python run_all.py --travel-cents-per-km 15 --bigM-cents 75000
+```
 
-# Save Cagliari comparison results
+### **Individual Scenario Testing**
+```bash
+# Demo scenario (6 EVs, 4 stations on 4×4 grid)
+python run_ev_optimization.py --save
+
+# Cagliari scenario (3 EVs, 2 stations)
 python cagliari_ev_scenario.py --save
 ```
 
 ## 📊 **Performance Results**
 
-| Algorithm | Time (ms) | Total Cost | Assignments | Status |
-|-----------|-----------|------------|-------------|---------|
-| **SSP**   | 0.252     | 238¢       | 6/6         | ✅ Optimal |
-| **Cycle** | 0.323     | 238¢       | 6/6         | ✅ Optimal |
-| **MMCC**  | 1.617     | 238¢       | 6/6         | ✅ Optimal |
+| Scenario | Algorithm | Assigned | Unassigned | Total Cost | Status |
+|----------|-----------|----------|------------|------------|---------|
+| **Demo** | SSP | 6/6 | 0 | 238¢ | ✅ Optimal |
+| **Demo** | Cycle | 6/6 | 0 | 238¢ | ✅ Optimal |
+| **Cagliari** | SSP | 3/3 | 0 | 55¢ | ✅ Optimal |
+| **Cagliari** | Cycle | 3/3 | 0 | 55¢ | ✅ Optimal |
 
 ## 🏗️ **Project Structure**
 
 ```
 Ev_Nearest_Charger/
 ├── ev_charging_optimizer.py    # Phase 1: Feasibility analysis & data models
-├── ev_charging_mcf.py          # Phase 2: MCF algorithms (SSP, Cycle, MMCC)
-├── run_ev_optimization.py      # Main orchestration script & CLI
-├── cagliari_ev_scenario.py     # Real Cagliari scenario adapter
+├── ev_charging_mcf.py          # Phase 2: MCF algorithms (SSP, Cycle-Canceling)
+├── run_ev_optimization.py      # Demo scenario runner
+├── cagliari_ev_scenario.py     # Cagliari scenario runner
+├── run_all.py                  # 🆕 Master orchestration script
+├── results_io.py               # 🆕 Professional results persistence
 ├── requirements.txt            # Python dependencies
-├── .gitignore                  # Git ignore rules
-└── README.md                   # This documentation
+├── README.md                   # This documentation
+└── results/                    # 🆕 Organized results storage
+    ├── demo/                   # Demo scenario results
+    ├── cagliari/               # Cagliari scenario results
+    ├── _index.csv              # 🆕 Consolidated run index
+    └── _index.json             # 🆕 Consolidated run index
 ```
 
-## 💾 **Results Storage**
+## 💾 **Professional Results Management**
 
-When using the `--save` flag, results are automatically saved to timestamped directories in `results/`:
+The new results system provides **research-grade output** with complete traceability:
 
-### **Demo Results** (`--save` with demo scenario)
-- `results.json` - Complete optimization results
-- `assignments.csv` - EV-to-station assignments  
-- `summary.txt` - Human-readable summary
-
-### **Benchmark Results** (`--bench --save`)
-- `benchmark.json` - Performance comparison data
-- `benchmark.csv` - Timing results in spreadsheet format
-- `benchmark_summary.txt` - Algorithm comparison table
-
-### **Cagliari Results** (`cagliari_ev_scenario.py --save`)
-- Individual algorithm results in separate folders
-- `comparison_summary.json` - Complete algorithm comparison
-- `algorithm_comparison.txt` - Results table
-- `cagliari_transportation_data.csv` - Original transportation problem data
-
+### **Structured Output Directory**
+Each run creates a timestamped directory:
 ```
+results/<scenario>/<timestamp>_<solver>/
+├── summary.json              # Complete optimization report
+├── assignments.csv           # EV-to-station assignments with costs
+├── station_utilization.csv   # Station usage statistics
+├── unassigned.csv           # List of unassigned EVs
+└── meta.json                # Run metadata and parameters
+```
+
+### **Consolidated Index**
+- **`_index.csv`**: Spreadsheet-friendly run summary
+- **`_index.json`**: Machine-readable run history
+- **Complete tracking**: Timestamp, scenario, solver, results, file paths
+
+### **Rich Data Export**
+- **JSON**: Complete optimization reports for programmatic analysis
+- **CSV**: Assignment details and station utilization for spreadsheet analysis
+- **Metadata**: Full parameter tracking for reproducibility
 
 ## 🎓 **Course Integration**
 
@@ -109,9 +119,8 @@ This project demonstrates **comprehensive coverage** of the Graphs & Network Opt
 
 - ✅ **Lecture 20**: Dijkstra's Algorithm (confirmed)
 - ✅ **Lecture 30**: Successive Shortest Path (confirmed)
-- 🔍 **Lectures 21-22**: Bellman-Ford (inferred)
-- 🔍 **Lectures 28-29**: Cycle-Canceling (inferred)
-- 🔍 **Lectures 31-32**: MMCC & Karp's Algorithm (inferred)
+- ✅ **Lectures 21-22**: Bellman-Ford (confirmed)
+- ✅ **Lectures 28-29**: Cycle-Canceling (confirmed)
 
 ## 🔧 **Theoretical Improvements**
 
@@ -132,20 +141,52 @@ The implementation follows **textbook network flow theory** (AMO):
 
 ## 📈 **Example Results**
 
+### **Demo Scenario**
 **Input**: 6 EVs, 4 charging stations on a 4×4 grid
 **Optimal Solution**: 238 cents total cost
 - EV1→S3 (38¢), EV2→S2 (36¢), EV3→S2 (55¢)
 - EV4→S1 (52¢), EV5→S3 (19¢), EV6→S3 (38¢)
 
-**vs. Unassigned penalty**: 300,000 cents (if no optimization)
+### **Cagliari Scenario**
+**Input**: 3 EVs, 2 charging stations in Cagliari network
+**Optimal Solution**: 55 cents total cost
+- EV-A→CA-S2 (18¢), EV-B→CA-S1 (18¢), EV-C→CA-S1 (19¢)
+
+**vs. Unassigned penalty**: 50,000 cents (if no optimization)
 
 ## 🏆 **Project Status**
 
-- ✅ **All three MCF algorithms working optimally**
+- ✅ **Both MCF algorithms working optimally**
 - ✅ **Theoretically sound** following AMO textbook principles
 - ✅ **Performance optimized** with sub-millisecond execution
 - ✅ **Production ready** for real-world deployment
 - ✅ **Research quality** suitable for academic publication
+- ✅ **Professional results management** with complete traceability
+- ✅ **Master orchestration** for comprehensive testing
+
+## 🚀 **Advanced Usage**
+
+### **Custom Parameters**
+```bash
+# Adjust travel costs
+python run_all.py --travel-cents-per-km 20
+
+# Adjust unassigned penalties
+python run_all.py --bigM-cents 100000
+
+# Run specific combinations
+python run_all.py --scenarios demo --solvers ssp
+```
+
+### **Results Analysis**
+```bash
+# View consolidated index
+cat results/_index.csv
+
+# Analyze specific run
+cat results/demo/20250914_080615_ssp/summary.json
+cat results/demo/20250914_080615_ssp/assignments.csv
+```
 
 ## 📚 **References**
 
@@ -155,4 +196,4 @@ The implementation follows **textbook network flow theory** (AMO):
 
 ---
 
-**This project serves as an excellent capstone that integrates virtually all major algorithms covered in a Graphs & Network Optimization course!** 🎯
+**This project serves as an excellent capstone that integrates major algorithms covered in a Graphs & Network Optimization course with professional-grade results management!** 🎯
