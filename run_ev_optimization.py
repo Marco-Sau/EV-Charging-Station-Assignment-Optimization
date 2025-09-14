@@ -1,7 +1,7 @@
 # run_ev_optimization.py
 """
 One-command runner for the Cagliari real scenario.
-- Choose algorithm: "ssp" or "cycle"
+- Run both algorithms by default, or choose specific algorithm: "ssp", "cycle", or "both"
 - Fixed seed for reproducibility
 - Saves results under results/
 """
@@ -91,10 +91,20 @@ def run(algo: str = "ssp", seed: int = DEFAULT_SEED) -> dict:
 
 def main():
     parser = argparse.ArgumentParser(description="Cagliari MCF optimization")
-    parser.add_argument("--algo", type=str, default="ssp", choices=["ssp", "cycle"], help="MCF algorithm")
+    parser.add_argument("--algo", type=str, default="both", choices=["ssp", "cycle", "both"], help="MCF algorithm(s) to run")
     parser.add_argument("--seed", type=int, default=DEFAULT_SEED, help="random seed (for reproducibility hooks)")
     args = parser.parse_args()
-    run(algo=args.algo, seed=args.seed)
+    
+    if args.algo == "both":
+        print("Running both SSP and Cycle-Canceling algorithms...")
+        print("=" * 50)
+        run(algo="ssp", seed=args.seed)
+        print("=" * 50)
+        run(algo="cycle", seed=args.seed)
+        print("=" * 50)
+        print("Both algorithms completed!")
+    else:
+        run(algo=args.algo, seed=args.seed)
 
 
 if __name__ == "__main__":
