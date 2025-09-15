@@ -141,7 +141,7 @@ Each algorithm run generates comprehensive results:
 - **Algorithm identification**: Clear algorithm naming
 - **Consolidated index**: `_index.json` tracks all runs
 
-## 🎓 **Course Integration**
+## 🎓 **Algorithms**
 
 This project demonstrates **comprehensive coverage** of network flow algorithms:
 
@@ -153,14 +153,13 @@ This project demonstrates **comprehensive coverage** of network flow algorithms:
 
 ## 🔧 **Theoretical Improvements**
 
-The implementation follows **textbook network flow theory** (AMO):
 
 1. **Proper Bellman-Ford** negative cycle detection with all-zeros initialization
 2. **Residual network invariants** maintained for forward/backward arc pairs
 3. **Direct transportation problem** modeling
 4. **Integer programming properties** preserved (dual integrality)
 5. **Node potentials** for efficient reduced cost calculations
-6. **No Big‑M penalty**: feasibility and capacities are encoded directly in the network; no artificial penalties are used.
+
 
 ## 🌍 **Real-World Applications**
 
@@ -192,7 +191,6 @@ The implementation follows **textbook network flow theory** (AMO):
 - ✅ **Production ready** for real-world deployment
 - ✅ **Comprehensive visualizations** with professional quality
 - ✅ **CLI runs both algorithms** by default for comparison
-- ✅ **LaTeX technical report** for academic documentation
 - ✅ **Real-world validation** on Cagliari transportation data
 
 ## 🚀 **Advanced Usage**
@@ -235,10 +233,3 @@ grep "timing_sec" results/*.json
 ## 📚 **References**
 
 - Ahuja, Magnanti & Orlin: "Network Flows: Theory, Algorithms, and Applications"
-- Course Materials: Graphs & Network Optimization
-- Dijkstra, E.W.: "A note on two problems in connexion with graphs"
-- Bellman, R.: "On a routing problem"
-
----
-
-**This project serves as an excellent capstone that integrates major algorithms covered in a Graphs & Network Optimization course with professional-grade implementation, comprehensive visualizations, and real-world validation!** 🎯
