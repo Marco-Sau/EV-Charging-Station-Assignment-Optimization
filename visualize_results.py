@@ -21,6 +21,8 @@ import matplotlib
 matplotlib.use('Agg')  # Use non-interactive backend
 import matplotlib.pyplot as plt
 import matplotlib.patches as patches
+from matplotlib.lines import Line2D
+from matplotlib.colors import Normalize
 import numpy as np
 import pandas as pd
 from datetime import datetime
@@ -121,13 +123,14 @@ class ResultsVisualizer:
         for node, pos in demand_positions.items():
             circle = patches.Circle(pos, 0.2, color='lightcoral', ec='darkred', linewidth=2)
             ax.add_patch(circle)
-            # Position text to the right of the circle
-            ax.text(pos[0] + 0.4, pos[1], node[:12], ha='left', va='center', 
-                   fontsize=9, fontweight='bold', color='darkred')
+            # Position full name to the right of the circle (no truncation)
+            ax.text(pos[0] + 0.4, pos[1], node, ha='left', va='center',
+                    fontsize=10, fontweight='bold', color='darkred')
         
         # Draw flows with external label positioning
         max_flow = max([flow['flow'] for flow in flows])
         max_cost = max([flow['unit_cost_eur'] for flow in flows])
+        min_cost = min([flow['unit_cost_eur'] for flow in flows])
         
         # Sort flows by cost to prioritize showing most expensive flows
         sorted_flows = sorted(flows, key=lambda x: x['arc_cost_eur'], reverse=True)
@@ -181,52 +184,26 @@ class ResultsVisualizer:
         ax.text(3, 0.3, f'Total Cost: €{latest_result.get("objective_eur", 0):.2f}', 
                ha='center', fontsize=12, color='darkred')
         
-        # Add legend in top right corner
-        legend_x = 9.5
-        legend_y = 0.8
-        
-        # Legend title
-        ax.text(legend_x, legend_y, 'Legend', ha='center', fontsize=12, fontweight='bold', 
-               color='black', bbox=dict(boxstyle='round,pad=0.3', facecolor='lightgray', alpha=0.8))
-        
-        # Arc color explanation
-        ax.text(legend_x, legend_y - 0.15, 'Arc Color = Unit Cost', ha='center', fontsize=10, 
-               fontweight='bold', color='black')
-        
-        # Color scale examples
-        color_examples = [
-            ('High Cost', 'red'),
-            ('Medium Cost', 'orange'), 
-            ('Low Cost', 'green')
+        # --- Legends ---
+        # Continuous legend for unit cost via colorbar
+        norm = Normalize(vmin=min_cost, vmax=max_cost)
+        sm = plt.cm.ScalarMappable(cmap=plt.cm.Reds, norm=norm)
+        sm.set_array([])
+        cbar = plt.colorbar(sm, ax=ax, pad=0.02)
+        cbar.set_label('Unit Cost (€/unit)')
+
+        # Discrete legend for flow thickness
+        sample_flows = [0.25 * max_flow, 0.5 * max_flow, 1.0 * max_flow]
+        handles = [
+            Line2D([0], [0], color='gray', lw=1 + (sample_flows[0] / max_flow) * 5, label='Low flow'),
+            Line2D([0], [0], color='gray', lw=1 + (sample_flows[1] / max_flow) * 5, label='Medium flow'),
+            Line2D([0], [0], color='gray', lw=1 + (sample_flows[2] / max_flow) * 5, label='High flow'),
         ]
-        
-        for i, (label, color) in enumerate(color_examples):
-            y_pos = legend_y - 0.4 - i * 0.6  # Very large spacing of 0.6 for excellent readability
-            # Draw colored line
-            ax.plot([legend_x - 0.3, legend_x - 0.1], [y_pos, y_pos], color=color, linewidth=3)
-            # Add label
-            ax.text(legend_x - 0.05, y_pos, label, ha='left', va='center', fontsize=14, color='black')
-        
-        # Arc thickness explanation
-        ax.text(legend_x, legend_y - 0.55, 'Arc Thickness = Flow Amount', ha='center', fontsize=10, 
-               fontweight='bold', color='black')
-        
-        # Thickness examples
-        thickness_examples = [
-            ('High Flow', 4),
-            ('Medium Flow', 2.5),
-            ('Low Flow', 1)
-        ]
-        
-        for i, (label, thickness) in enumerate(thickness_examples):
-            y_pos = legend_y - 1.2 - i * 0.6  # Very large spacing of 0.6 and adjusted start position
-            # Draw line with different thickness
-            ax.plot([legend_x - 0.3, legend_x - 0.1], [y_pos, y_pos], color='blue', linewidth=thickness)
-            # Add label
-            ax.text(legend_x - 0.05, y_pos, label, ha='left', va='center', fontsize=14, color='black')
+        flow_legend = ax.legend(handles=handles, title='Flow (thickness)', loc='lower right', frameon=True)
+        ax.add_artist(flow_legend)
         
         # Set axis properties to accommodate external labels
-        ax.set_xlim(0, 12)
+        ax.set_xlim(0, 14)
         ax.set_ylim(0, max(len(supply_nodes), len(demand_nodes)) * 1.2 + 1)
         ax.set_aspect('equal')
         ax.axis('off')
@@ -295,20 +272,23 @@ class ResultsVisualizer:
         print("Cost distribution analysis saved as 'visualizations/cost_distribution.png'")
     
     def create_results_dashboard(self):
-        """Create a comprehensive results dashboard."""
+        """Create a concise results dashboard with two plots:
+        (1) Algorithm performance comparison
+        (2) Top 10 most expensive flows
+        """
         if not self.results_data:
             print("No results data available")
             return
-        
-        # Create a large dashboard
-        fig = plt.figure(figsize=(20, 12))
-        gs = fig.add_gridspec(3, 4, hspace=0.3, wspace=0.3)
-        
+
+        # Create a compact dashboard with improved layout and size
+        fig = plt.figure(figsize=(20, 10), constrained_layout=True)
+        gs = fig.add_gridspec(1, 2, width_ratios=[1, 1.4])
+
         # Title
         fig.suptitle('EV Charging Optimization - Results Dashboard', fontsize=20, fontweight='bold')
-        
-        # 1. Algorithm comparison (top left)
-        ax1 = fig.add_subplot(gs[0, :2])
+
+        # 1) Algorithm Performance Comparison (left)
+        ax1 = fig.add_subplot(gs[0, 0])
         algorithms = {}
         for result in self.results_data:
             algo = result.get('algorithm', 'unknown')
@@ -316,15 +296,15 @@ class ResultsVisualizer:
                 algorithms[algo] = {'objectives': [], 'times': []}
             algorithms[algo]['objectives'].append(result.get('objective_eur', 0))
             algorithms[algo]['times'].append(result.get('timing_sec', 0))
-        
+
         x_pos = np.arange(len(algorithms))
         objectives = [np.mean(algorithms[algo]['objectives']) for algo in algorithms.keys()]
-        times = [np.mean(algorithms[algo]['times']) * 1000 for algo in algorithms.keys()]  # Convert to ms
-        
+        times = [np.mean(algorithms[algo]['times']) * 1000 for algo in algorithms.keys()]  # ms
+
         ax1_twin = ax1.twinx()
-        bars1 = ax1.bar(x_pos - 0.2, objectives, 0.4, label='Objective (€)', color='skyblue')
-        bars2 = ax1_twin.bar(x_pos + 0.2, times, 0.4, label='Time (ms)', color='lightcoral')
-        
+        ax1.bar(x_pos - 0.2, objectives, 0.4, label='Objective (€)', color='skyblue')
+        ax1_twin.bar(x_pos + 0.2, times, 0.4, label='Time (ms)', color='lightcoral')
+
         ax1.set_xlabel('Algorithm')
         ax1.set_ylabel('Objective Cost (€)', color='blue')
         ax1_twin.set_ylabel('Execution Time (ms)', color='red')
@@ -333,83 +313,41 @@ class ResultsVisualizer:
         ax1.set_xticklabels([algo.upper() for algo in algorithms.keys()])
         ax1.legend(loc='upper left')
         ax1_twin.legend(loc='upper right')
-        
-        # 2. Results timeline (top right)
-        ax2 = fig.add_subplot(gs[0, 2:])
-        timestamps = []
-        objectives_timeline = []
-        for result in sorted(self.results_data, key=lambda x: x.get('timestamp', '')):
-            timestamps.append(result.get('timestamp', ''))
-            objectives_timeline.append(result.get('objective_eur', 0))
-        
-        ax2.plot(range(len(timestamps)), objectives_timeline, marker='o', linewidth=2, markersize=6)
-        ax2.set_title('Objective Values Over Time')
-        ax2.set_xlabel('Run Number')
-        ax2.set_ylabel('Objective Cost (€)')
-        ax2.grid(True, alpha=0.3)
-        
-        # 3. Flow statistics (middle left)
-        ax3 = fig.add_subplot(gs[1, :2])
+
+        # 2) Top 10 Most Expensive Flows (right)
+        ax2 = fig.add_subplot(gs[0, 1])
+
         latest_result = max(self.results_data, key=lambda x: x.get('timestamp', ''))
         flows = latest_result.get('flows', [])
-        
+
         if flows:
-            flow_amounts = [flow['flow'] for flow in flows]
-            ax3.hist(flow_amounts, bins=15, alpha=0.7, color='lightgreen', edgecolor='black')
-            ax3.set_title('Flow Amount Distribution')
-            ax3.set_xlabel('Flow Amount (units)')
-            ax3.set_ylabel('Frequency')
-            ax3.grid(True, alpha=0.3)
-        
-        # 4. Cost breakdown (middle right)
-        ax4 = fig.add_subplot(gs[1, 2:])
-        if flows:
-            # Top 10 most expensive flows
             top_flows = sorted(flows, key=lambda x: x['arc_cost_eur'], reverse=True)[:10]
-            flow_labels = [f"{f['from'][:10]}...\n→ {f['to'][:10]}..." for f in top_flows]
+            labels = [f"{f['from']} → {f['to']}" for f in top_flows]
             costs = [f['arc_cost_eur'] for f in top_flows]
-            
-            bars = ax4.barh(range(len(flow_labels)), costs, color='lightcoral')
-            ax4.set_yticks(range(len(flow_labels)))
-            ax4.set_yticklabels(flow_labels, fontsize=8)
-            ax4.set_xlabel('Arc Cost (€)')
-            ax4.set_title('Top 10 Most Expensive Flows')
-            ax4.grid(True, alpha=0.3)
-            
-            # Add value labels on bars
-            for i, bar in enumerate(bars):
+
+            bars = ax2.barh(np.arange(len(labels)), costs, color='lightcoral')
+            ax2.set_yticks(np.arange(len(labels)))
+            ax2.set_yticklabels(labels, fontsize=10)
+            # Move y-axis labels to the right to avoid overlapping the left subplot
+            ax2.tick_params(axis='y', labelleft=False, labelright=True)
+            # Ensure there is some horizontal margin so value annotations don't clip
+            ax2.set_xlim(0, max(costs) * 1.15)
+            ax2.margins(x=0.02)
+            ax2.set_xlabel('Arc Cost (€)')
+            ax2.set_title('Top 10 Most Expensive Flows')
+            ax2.grid(True, alpha=0.3)
+
+            for bar in bars:
                 width = bar.get_width()
-                ax4.text(width + 10, bar.get_y() + bar.get_height()/2, 
-                        f'€{width:.0f}', ha='left', va='center', fontsize=8)
-        
-        # 5. Summary statistics (bottom)
-        ax5 = fig.add_subplot(gs[2, :])
-        ax5.axis('off')
-        
-        # Calculate summary statistics
-        total_runs = len(self.results_data)
-        unique_algos = list(set([r.get('algorithm', 'unknown') for r in self.results_data]))
-        avg_objective = np.mean([r.get('objective_eur', 0) for r in self.results_data])
-        min_time = min([r.get('timing_sec', 0) for r in self.results_data])
-        max_time = max([r.get('timing_sec', 0) for r in self.results_data])
-        
-        summary_text = f"""
-        SUMMARY STATISTICS
-        ==================
-        Total Runs: {total_runs}
-        Algorithms Used: {', '.join([algo.upper() for algo in unique_algos])}
-        Average Objective: €{avg_objective:.2f}
-        Fastest Execution: {min_time*1000:.1f}ms
-        Slowest Execution: {max_time*1000:.1f}ms
-        Latest Result: {latest_result.get('algorithm', 'unknown').upper()} - €{latest_result.get('objective_eur', 0):.2f}
-        """
-        
-        ax5.text(0.1, 0.5, summary_text, transform=ax5.transAxes, fontsize=14,
-                verticalalignment='center', fontfamily='monospace',
-                bbox=dict(boxstyle='round,pad=0.5', facecolor='lightgray', alpha=0.8))
-        
+                ax2.text(width + 10, bar.get_y() + bar.get_height()/2,
+                         f'€{width:.0f}', ha='left', va='center', fontsize=9)
+        else:
+            ax2.text(0.5, 0.5, 'No flow data available',
+                     ha='center', va='center', transform=ax2.transAxes)
+
+        # Save the figure
         plt.savefig('visualizations/results_dashboard.png', dpi=300, bbox_inches='tight')
-        plt.close()  # Close the figure instead of showing it
+        plt.close()
         print("Results dashboard saved as 'visualizations/results_dashboard.png'")
     
     def generate_all_visualizations(self):

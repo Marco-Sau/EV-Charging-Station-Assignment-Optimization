@@ -1,0 +1,204 @@
+EV CHARGING OPTIMIZATION PROJECT - SCRIPT ARCHITECTURE
+========================================================
+
+┌─────────────────────────────────────────────────────────────────────────────────┐
+│                           PROJECT STRUCTURE                                     │
+└─────────────────────────────────────────────────────────────────────────────────┘
+
+┌─────────────────────────────────────────────────────────────────────────────────┐
+│                              MAIN ENTRY POINT                                  │
+│                                                                                 │
+│  ┌─────────────────────────────────────────────────────────────────────────┐   │
+│  │                    run_ev_optimization.py                              │   │
+│  │  ┌─────────────────────────────────────────────────────────────────┐   │   │
+│  │  │ • Main CLI orchestrator                                        │   │   │
+│  │  │ • Runs both SSP and Cycle-Canceling by default                 │   │   │
+│  │  │ • Command line argument parsing                                │   │   │
+│  │  │ • Results saving with timestamps                               │   │   │
+│  │  │ • Performance timing and logging                               │   │   │
+│  │  └─────────────────────────────────────────────────────────────────┘   │   │
+│  └─────────────────────────────────────────────────────────────────────────┘   │
+└─────────────────────────────────────────────────────────────────────────────────┘
+                                    │
+                                    ▼
+┌─────────────────────────────────────────────────────────────────────────────────┐
+│                              DATA LAYER                                        │
+│                                                                                 │
+│  ┌─────────────────────────────────────────────────────────────────────────┐   │
+│  │                 cagliari_real_scenario.py                              │   │
+│  │  ┌─────────────────────────────────────────────────────────────────┐   │   │
+│  │  │ • Real Cagliari transportation data                             │   │   │
+│  │  │ • 11 supply locations (EV origins)                              │   │   │
+│  │  │ • 5 demand locations (charging stations)                        │   │   │
+│  │  │ • Cost matrix (€ per unit)                                      │   │   │
+│  │  │ • Capacity constraints                                          │   │   │
+│  │  │ • 350 total units (balanced)                                    │   │   │
+│  │  └─────────────────────────────────────────────────────────────────┘   │   │
+│  └─────────────────────────────────────────────────────────────────────────┘   │
+│                                                                                 │
+│  ┌─────────────────────────────────────────────────────────────────────────┐   │
+│  │                 cagliari_ev_scenario.py                               │   │
+│  │  ┌─────────────────────────────────────────────────────────────────┐   │   │
+│  │  │ • Backwards compatibility shim                                  │   │   │
+│  │  │ • Exposes real Cagliari instance                               │   │   │
+│  │  │ • Legacy interface maintenance                                 │   │   │
+│  │  └─────────────────────────────────────────────────────────────────┘   │   │
+│  └─────────────────────────────────────────────────────────────────────────┘   │
+└─────────────────────────────────────────────────────────────────────────────────┘
+                                    │
+                                    ▼
+┌─────────────────────────────────────────────────────────────────────────────────┐
+│                           CORE ALGORITHMS LAYER                                │
+│                                                                                 │
+│  ┌─────────────────────────────────────────────────────────────────────────┐   │
+│  │                    ev_charging_mcf.py                                 │   │
+│  │  ┌─────────────────────────────────────────────────────────────────┐   │   │
+│  │  │                    NETWORK DATA STRUCTURES                      │   │   │
+│  │  │  ┌─────────────────────────────────────────────────────────┐   │   │   │
+│  │  │  │ • Network class (residual network representation)      │   │   │   │
+│  │  │  │ • Node class (supply/demand nodes)                     │   │   │   │
+│  │  │  │ • Arc class (flow arcs with costs/capacities)          │   │   │   │
+│  │  │  └─────────────────────────────────────────────────────────┘   │   │   │
+│  │  └─────────────────────────────────────────────────────────────────┘   │   │
+│  │                                                                         │   │
+│  │  ┌─────────────────────────────────────────────────────────────────┐   │   │
+│  │  │                    MAIN ALGORITHMS                              │   │   │
+│  │  │  ┌─────────────────────────────────────────────────────────┐   │   │   │
+│  │  │  │ • ssp_with_potentials() - Successive Shortest Path     │   │   │   │
+│  │  │  │ • cycle_canceling() - Cycle-Canceling Algorithm        │   │   │   │
+│  │  │  │ • build_transportation_network() - Network builder     │   │   │   │
+│  │  │  │ • total_cost() - Objective function calculation        │   │   │   │
+│  │  │  │ • extract_nonzero_flows() - Solution extraction        │   │   │   │
+│  │  │  └─────────────────────────────────────────────────────────┘   │   │   │
+│  │  └─────────────────────────────────────────────────────────────────┘   │   │
+│  │                                                                         │   │
+│  │  ┌─────────────────────────────────────────────────────────────────┐   │   │
+│  │  │                    SUPPORTING ALGORITHMS                       │   │   │
+│  │  │  ┌─────────────────────────────────────────────────────────┐   │   │   │
+│  │  │  │ • _dijkstra_reduced_costs() - Dijkstra's Algorithm     │   │   │   │
+│  │  │  │ • bellman_ford_cycle_detection() - Bellman-Ford        │   │   │   │
+│  │  │  │ • preflow_push_fifo() - Preflow-Push Algorithm         │   │   │   │
+│  │  │  │ • backward_breadth_first_search() - Reverse BFS        │   │   │   │
+│  │  │  └─────────────────────────────────────────────────────────┘   │   │   │
+│  │  └─────────────────────────────────────────────────────────────────┘   │   │
+│  └─────────────────────────────────────────────────────────────────────────┘   │
+└─────────────────────────────────────────────────────────────────────────────────┘
+                                    │
+                                    ▼
+┌─────────────────────────────────────────────────────────────────────────────────┐
+│                           VISUALIZATION LAYER                                  │
+│                                                                                 │
+│  ┌─────────────────────────────────────────────────────────────────────────┐   │
+│  │                    visualize_results.py                                │   │
+│  │  ┌─────────────────────────────────────────────────────────────────┐   │   │
+│  │  │ • ResultsLoader class - Loads JSON results from results/        │   │   │
+│  │  │ • FlowNetworkVisualizer class - Creates network diagrams        │   │   │
+│  │  │ • CostDistributionAnalyzer class - Statistical analysis         │   │   │
+│  │  │ • ResultsDashboard class - Comprehensive dashboard              │   │   │
+│  │  │ • Non-interactive mode - Saves images directly                  │   │   │
+│  │  │ • Professional quality plots with legends and formatting        │   │   │
+│  │  └─────────────────────────────────────────────────────────────────┘   │   │
+│  └─────────────────────────────────────────────────────────────────────────┘   │
+└─────────────────────────────────────────────────────────────────────────────────┘
+                                    │
+                                    ▼
+┌─────────────────────────────────────────────────────────────────────────────────┐
+│                              OUTPUT LAYER                                      │
+│                                                                                 │
+│  ┌─────────────────────────────────────────────────────────────────────────┐   │
+│  │                              results/                                 │   │
+│  │  ┌─────────────────────────────────────────────────────────────────┐   │   │
+│  │  │ • cagliari_ssp_YYYYMMDD_HHMMSS.json - SSP results              │   │   │
+│  │  │ • cagliari_cycle_YYYYMMDD_HHMMSS.json - Cycle-Canceling results │   │   │
+│  │  │ • _index.json - Consolidated run index                          │   │   │
+│  │  │ • Complete solution data with flows, costs, timing              │   │   │
+│  │  └─────────────────────────────────────────────────────────────────┘   │   │
+│  └─────────────────────────────────────────────────────────────────────────┘   │
+│                                                                                 │
+│  ┌─────────────────────────────────────────────────────────────────────────┐   │
+│  │                           visualizations/                             │   │
+│  │  ┌─────────────────────────────────────────────────────────────────┐   │   │
+│  │  │ • flow_network.png - Bipartite graph visualization             │   │   │
+│  │  │ • cost_distribution.png - Statistical analysis plots           │   │   │
+│  │  │ • results_dashboard.png - Comprehensive performance dashboard  │   │   │
+│  │  │ • Professional quality with legends and clear formatting       │   │   │
+│  │  └─────────────────────────────────────────────────────────────────┘   │   │
+│  └─────────────────────────────────────────────────────────────────────────┘   │
+└─────────────────────────────────────────────────────────────────────────────────┘
+
+┌─────────────────────────────────────────────────────────────────────────────────┐
+│                              DOCUMENTATION LAYER                               │
+│                                                                                 │
+│  ┌─────────────────────────────────────────────────────────────────────────┐   │
+│  │ • README.md - Main project documentation                               │   │
+│  │ • README_visualization.md - Visualization system documentation        │   │
+│  │ • EV_Charging_Optimization_Report.tex - LaTeX technical report        │   │
+│  │ • requirements.txt - Core dependencies                                 │   │
+│  │ • requirements_visualization.txt - Visualization dependencies         │   │
+│  └─────────────────────────────────────────────────────────────────────────┘   │
+└─────────────────────────────────────────────────────────────────────────────────┘
+
+┌─────────────────────────────────────────────────────────────────────────────────┐
+│                              EXECUTION FLOW                                    │
+└─────────────────────────────────────────────────────────────────────────────────┘
+
+1. USER EXECUTION:
+   python run_ev_optimization.py
+   │
+   ▼
+2. DATA LOADING:
+   get_cagliari_instance() → Real Cagliari transportation data
+   │
+   ▼
+3. NETWORK CONSTRUCTION:
+   build_transportation_network() → Bipartite flow network
+   │
+   ▼
+4. ALGORITHM EXECUTION:
+   ├── ssp_with_potentials() → Successive Shortest Path
+   └── cycle_canceling() → Cycle-Canceling Algorithm
+   │
+   ▼
+5. SOLUTION EXTRACTION:
+   extract_nonzero_flows() → Optimal assignments
+   │
+   ▼
+6. RESULTS SAVING:
+   save_results() → JSON files in results/
+   │
+   ▼
+7. VISUALIZATION (Optional):
+   python visualize_results.py → PNG files in visualizations/
+
+┌─────────────────────────────────────────────────────────────────────────────────┐
+│                              KEY FEATURES                                      │
+└─────────────────────────────────────────────────────────────────────────────────┘
+
+✅ DIRECT TRANSPORTATION PROBLEM:
+   • Single-phase optimization using pre-computed Cagliari data
+   • Direct network construction from supply/demand matrices
+   • Minimum cost flow optimization with SSP/Cycle-Canceling
+
+✅ AMO TEXTBOOK COMPLIANCE:
+   • Proper Bellman-Ford initialization
+   • Residual network invariants
+   • Node potentials for reduced costs
+   • Integer programming properties
+
+✅ PROFESSIONAL VISUALIZATION:
+   • Flow network diagrams with clear legends
+   • Statistical analysis with histograms
+   • Performance dashboards
+   • Non-interactive saving mode
+
+✅ REAL-WORLD VALIDATION:
+   • Cagliari transportation data
+   • 11 supply locations, 5 demand locations
+   • 350 total units, balanced instance
+   • Optimal solutions: €22,624.50 total cost, 15 active arcs
+
+✅ PRODUCTION READY:
+   • Command-line interface
+   • Structured results saving
+   • Comprehensive documentation
+   • GitHub repository with full source code

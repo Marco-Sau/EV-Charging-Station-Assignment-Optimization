@@ -1,0 +1,178 @@
+EV CHARGING OPTIMIZATION PROJECT - NETWORK DIAGRAM
+==================================================
+
+                    ┌─────────────────────────────────┐
+                    │        USER INTERFACE           │
+                    │                                 │
+                    │  python run_ev_optimization.py  │
+                    └─────────────────┬───────────────┘
+                                      │
+                                      ▼
+                    ┌─────────────────────────────────┐
+                    │     MAIN ORCHESTRATOR          │
+                    │                                 │
+                    │    run_ev_optimization.py      │
+                    │  • CLI argument parsing        │
+                    │  • Algorithm selection         │
+                    │  • Results management          │
+                    │  • Performance timing          │
+                    └─────────────────┬───────────────┘
+                                      │
+                    ┌─────────────────┼───────────────┐
+                    │                 │               │
+                    ▼                 ▼               ▼
+    ┌─────────────────────┐ ┌─────────────────────┐ ┌─────────────────────┐
+    │    DATA LAYER       │ │   ALGORITHM LAYER   │ │  VISUALIZATION      │
+    │                     │ │                     │ │      LAYER          │
+    │ cagliari_real_      │ │ ev_charging_mcf.py  │ │ visualize_results.py│
+    │ scenario.py         │ │                     │ │                     │
+    │ • Real Cagliari     │ │ ┌─────────────────┐ │ │ ┌─────────────────┐ │
+    │   data              │ │ │ MAIN ALGORITHMS │ │ │ │ VISUALIZATION   │ │
+    │ • 11 supply locs    │ │ │                 │ │ │ │ CLASSES         │ │
+    │ • 5 demand locs     │ │ │ • SSP           │ │ │ │                 │ │
+    │ • Cost matrix       │ │ │ • Cycle-Cancel  │ │ │ │ • FlowNetwork   │ │
+    │ • Capacities        │ │ │ • Network Build │ │ │ │ • CostAnalysis  │ │
+    │                     │ │ │ • Solution Extr │ │ │ │ • Dashboard     │ │
+    │ cagliari_ev_        │ │ └─────────────────┘ │ │ └─────────────────┘ │
+    │ scenario.py         │ │                     │ │                     │
+    │ • Backwards compat  │ │ ┌─────────────────┐ │ │                     │
+    │ • Legacy interface  │ │ │ SUPPORTING      │ │ │                     │
+    │                     │ │ │ ALGORITHMS      │ │ │                     │
+    │                     │ │ │                 │ │ │                     │
+    │                     │ │ │ • Dijkstra      │ │ │                     │
+    │                     │ │ │ • Bellman-Ford  │ │ │                     │
+    │                     │ │ │ • Preflow-Push  │ │ │                     │
+    │                     │ │ │ • Reverse BFS   │ │ │                     │
+    │                     │ │ └─────────────────┘ │ │                     │
+    └─────────────────────┘ └─────────────────────┘ └─────────────────────┘
+                                      │
+                                      ▼
+                    ┌─────────────────────────────────┐
+                    │         OUTPUT LAYER            │
+                    │                                 │
+                    │  ┌─────────────────────────────┐│
+                    │  │        results/             ││
+                    │  │                             ││
+                    │  │ • JSON result files         ││
+                    │  │ • Timestamped runs          ││
+                    │  │ • Algorithm outputs         ││
+                    │  │ • Performance metrics       ││
+                    │  └─────────────────────────────┘│
+                    │                                 │
+                    │  ┌─────────────────────────────┐│
+                    │  │     visualizations/         ││
+                    │  │                             ││
+                    │  │ • flow_network.png          ││
+                    │  │ • cost_distribution.png     ││
+                    │  │ • results_dashboard.png     ││
+                    │  └─────────────────────────────┘│
+                    └─────────────────────────────────┘
+
+ALGORITHM EXECUTION FLOW:
+========================
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+│  SINGLE PHASE: DIRECT TRANSPORTATION PROBLEM                              │
+│  ┌─────────────────────────────────────────────────────────────────────┐   │
+│  │ 1. Load Cagliari data (supplies, demands, costs, capacities)      │   │
+│  │ 2. Build bipartite transportation network directly                │   │
+│  │ 3. Apply minimum cost flow algorithms                             │   │
+│  │ 4. Extract optimal flow assignments                               │   │
+│  └─────────────────────────────────────────────────────────────────────┘   │
+└─────────────────────────────────────────────────────────────────────────────┘
+                                      │
+                                      ▼
+┌─────────────────────────────────────────────────────────────────────────────┐
+│  MINIMUM COST FLOW OPTIMIZATION                                           │
+│  ┌─────────────────────────────────────────────────────────────────────┐   │
+│  │                    ALGORITHM SELECTION                             │   │
+│  │                                                                     │   │
+│  │  ┌─────────────────────────┐    ┌─────────────────────────┐        │   │
+│  │  │   SSP ALGORITHM        │    │  CYCLE-CANCELING        │        │   │
+│  │  │                        │    │                         │        │   │
+│  │  │ 1. Initialize flow=0   │    │ 1. Find initial flow    │        │   │
+│  │  │ 2. Initialize π=0      │    │    (Preflow-Push)       │        │   │
+│  │  │ 3. Find shortest path  │    │ 2. Detect neg. cycles   │        │   │
+│  │  │    (reduced costs)     │    │    (Bellman-Ford)       │        │   │
+│  │  │ 4. Augment flow        │    │ 3. Cancel cycles        │        │   │
+│  │  │ 5. Update potentials   │    │ 4. Repeat until optimal │        │   │
+│  │  │ 6. Repeat until opt.   │    │                         │        │   │
+│  │  └─────────────────────────┘    └─────────────────────────┘        │   │
+│  └─────────────────────────────────────────────────────────────────────┘   │
+└─────────────────────────────────────────────────────────────────────────────┘
+                                      │
+                                      ▼
+┌─────────────────────────────────────────────────────────────────────────────┐
+│  SOLUTION EXTRACTION AND OUTPUT                                           │
+│  ┌─────────────────────────────────────────────────────────────────────┐   │
+│  │ 1. Extract optimal flow assignments                                │   │
+│  │ 2. Calculate total objective cost                                  │   │
+│  │ 3. Measure execution time                                          │   │
+│  │ 4. Save results to JSON files                                      │   │
+│  │ 5. Generate visualizations (optional)                              │   │
+│  └─────────────────────────────────────────────────────────────────────┘   │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+DATA FLOW DIAGRAM:
+==================
+
+    Cagliari Data ──┐
+                    │
+                    ▼
+    ┌─────────────────────────────────┐
+    │     Network Construction        │
+    │  build_transportation_network() │
+    └─────────────────┬───────────────┘
+                      │
+                      ▼
+    ┌─────────────────────────────────┐
+    │      Algorithm Execution        │
+    │                                 │
+    │  ┌─────────────┐ ┌─────────────┐│
+    │  │     SSP     │ │   CYCLE     ││
+    │  │             │ │             ││
+    │  │ 2.7ms       │ │ 21.6ms      ││
+    │  │ €22,624.50  │ │ €22,624.50  ││
+    │  └─────────────┘ └─────────────┘│
+    └─────────────────┬───────────────┘
+                      │
+                      ▼
+    ┌─────────────────────────────────┐
+    │       Solution Output           │
+    │                                 │
+    │  • 15 active arcs (out of 55)   │
+    │  • Total cost: €22,624.50       │
+    │  • 350 units optimally          │
+    │    distributed                  │
+    └─────────────────┬───────────────┘
+                      │
+                      ▼
+    ┌─────────────────────────────────┐
+    │      Visualization              │
+    │                                 │
+    │  • Flow network diagrams        │
+    │  • Cost distribution analysis   │
+    │  • Performance dashboards       │
+    └─────────────────────────────────┘
+
+KEY FEATURES:
+=============
+
+✅ DIRECT TRANSPORTATION PROBLEM:
+   • Single-phase optimization with pre-computed data
+   • MCF optimization with SSP/Cycle-Canceling
+
+✅ AMO TEXTBOOK COMPLIANCE:
+   • Proper algorithm implementations
+   • Residual network invariants
+   • Node potentials for efficiency
+
+✅ PROFESSIONAL OUTPUT:
+   • Structured JSON results
+   • High-quality visualizations
+   • Comprehensive documentation
+
+✅ REAL-WORLD VALIDATION:
+   • Cagliari transportation data
+   • Optimal solutions achieved
+   • Production-ready implementation

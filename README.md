@@ -4,36 +4,37 @@ A sophisticated **Electric Vehicle (EV) Charging Station Assignment Optimization
 
 ## 🎯 **Project Overview**
 
-This project implements a **two-phase optimization approach**:
+This project implements a **direct transportation problem approach**:
 
-### **Phase 1: Feasibility Analysis**
-- **Electric Vehicle Charging Station Problem (ECSP)** style enumeration
-- **Dijkstra's algorithm** to find shortest paths from each EV to all reachable stations
-- **Energy feasibility check**: Ensures EVs can reach stations with their current battery
-- **Cost calculation**: Travel cost + charging cost for each feasible assignment
+### **Single-Phase Optimization**
+- **Transportation Problem**: Direct modeling as capacitated minimum-cost flow
+- **Real-world data**: Uses actual Cagliari transportation instance (11 supply zones, 5 demand zones)
+- **Pre-computed costs**: All costs and capacities provided in the data matrices
+- **Network construction**: Builds bipartite flow network directly from supply/demand data
 
-### **Phase 2: Minimum Cost Flow Optimization**
-Converts the assignment problem into a **network flow optimization** and solves it using **two proven algorithms**:
+### **Minimum Cost Flow Algorithms**
+Solves the transportation problem using **two proven algorithms**:
 
 1. **Successive Shortest Path (SSP)** - Fast and efficient with node potentials
 2. **Cycle-Canceling** - General-purpose approach with Bellman-Ford negative cycle detection
 
 ## 🧮 **Algorithms Implemented**
 
-| Algorithm | Implementation | Purpose | Performance |
-|-----------|----------------|---------|-------------|
-| **Dijkstra** | `dijkstra_shortest_paths()` | Shortest path finding | O(V²) |
-| **Bellman-Ford** | `bellman_ford_negative_cycle()` | Negative cycle detection | O(VE) |
-| **SSP** | `ssp_with_potentials()` | MCF with node potentials | O(V²E log V) |
-| **Cycle-Canceling** | `cycle_canceling()` | MCF optimization | O(V²E²C) |
+| Algorithm | Implementation | Purpose | Typical Complexity |
+|-----------|----------------|---------|--------------------|
+| **Dijkstra** | `_dijkstra_reduced_costs()` | Shortest paths on **reduced costs** inside SSP | O((V+E) log V) with a binary heap |
+| **Bellman–Ford** | `bellman_ford_cycle_detection()` | Negative-cycle detection in the residual graph | O(VE) |
+| **SSP** | `ssp_with_potentials()` | Min-cost flow with node potentials | O(F · E log V), where F is total shipped flow (= total demand) |
+| **Cycle-Canceling** | `cycle_canceling()` | Improve flow by canceling negative cycles | O(VE · U · C) worst-case for integral costs (per-iteration O(VE), ~U·C iterations) |
+| **Preflow–Push** | `preflow_push_fifo()` | Build an initial feasible flow | O(V^3) worst-case (generic push–relabel); used once for feasibility |
 
 ## 🚀 **Quick Start**
 
 ### **Requirements**
-```bash
+```
 # Core optimization (Python standard library only)
 # For visualizations:
-pip install matplotlib pandas seaborn numpy
+pip install matplotlib pandas numpy
 ```
 
 ### **Run Both Algorithms (Default)**
@@ -58,16 +59,17 @@ python visualize_results.py
 ## 📊 **Performance Results**
 
 ### **Cagliari Real-World Scenario**
-| Algorithm | Execution Time | Total Cost | Assigned EVs | Status |
-|-----------|----------------|------------|--------------|---------|
-| **SSP** | 0.0027s | €22,624.50 | 35/35 | ✅ Optimal |
-| **Cycle-Canceling** | 0.0216s | €22,624.50 | 35/35 | ✅ Optimal |
+| Algorithm | Execution Time (ms) | Total Cost | Active Arcs | Status |
+|-----------|---------------------|------------|-------------|--------|
+| **SSP** | 2.7 | €22,624.50 | 15/55 | ✅ Optimal |
+| **Cycle-Canceling** | 21.6 | €22,624.50 | 15/55 | ✅ Optimal |
 
 **Key Insights:**
 - Both algorithms find identical optimal solutions
 - SSP is ~8x faster than Cycle-Canceling
-- All 35 EVs successfully assigned to charging stations
-- Significant cost optimization vs. unassigned penalty
+- Only 15 out of 55 possible arcs carry positive flow (sparse solution)
+- Total flow of 350 units optimally distributed
+- Significant cost optimization vs. naive assignment
 
 ## 🏗️ **Project Structure**
 
@@ -110,10 +112,8 @@ The project includes a comprehensive visualization system that generates profess
 - **Flow analysis**: Flow amount distribution
 
 ### **Results Dashboard**
-- **Algorithm comparison**: Performance metrics side-by-side
-- **Timeline analysis**: Results over time
-- **Flow statistics**: Comprehensive flow analysis
-- **Summary statistics**: Key performance indicators
+- **Algorithm comparison**: objective (€) vs execution time (ms)
+- **Top‑10 most expensive flows**: arc cost (= unit cost × flow) with O→D labels
 
 ## 💾 **Results Management**
 
@@ -124,7 +124,7 @@ Each algorithm run generates comprehensive results:
   "algorithm": "ssp",
   "seed": 42,
   "objective_eur": 22624.50,
-  "num_arcs_with_flow": 35,
+  "num_arcs_with_flow": 15,
   "flows": [...],
   "timing_sec": 0.0027,
   "instance": {
@@ -145,7 +145,7 @@ Each algorithm run generates comprehensive results:
 
 This project demonstrates **comprehensive coverage** of network flow algorithms:
 
-- ✅ **Dijkstra's Algorithm**: Shortest path finding for feasibility
+- ✅ **Dijkstra's Algorithm**: Shortest‑path subroutine on reduced costs inside SSP
 - ✅ **Bellman-Ford Algorithm**: Negative cycle detection
 - ✅ **Successive Shortest Path**: MCF with node potentials
 - ✅ **Cycle-Canceling**: General MCF optimization
@@ -157,9 +157,10 @@ The implementation follows **textbook network flow theory** (AMO):
 
 1. **Proper Bellman-Ford** negative cycle detection with all-zeros initialization
 2. **Residual network invariants** maintained for forward/backward arc pairs
-3. **Complete feasibility filtering** before optimization
+3. **Direct transportation problem** modeling
 4. **Integer programming properties** preserved (dual integrality)
 5. **Node potentials** for efficient reduced cost calculations
+6. **No Big‑M penalty**: feasibility and capacities are encoded directly in the network; no artificial penalties are used.
 
 ## 🌍 **Real-World Applications**
 
@@ -179,7 +180,7 @@ The implementation follows **textbook network flow theory** (AMO):
 
 ### **Optimal Solution**
 - **Total cost**: €22,624.50
-- **All EVs assigned**: 35/35 successful assignments
+- **Active arcs**: 15 out of 55 possible arcs carry positive flow
 - **Algorithm performance**: SSP (2.7ms) vs Cycle-Canceling (21.6ms)
 - **Cost efficiency**: Significant savings vs. unoptimized assignment
 
